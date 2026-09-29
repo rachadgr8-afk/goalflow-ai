@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: "Type de build (debug ou release)"
+        description: "Type de build (debug = installable directement, release = non signé)"
         required: true
-        default: "release"
+        default: "debug"
         type: choice
         options:
           - debug
@@ -36,8 +36,25 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK (manual, robust)
+        run: |
+          set -e
+          export ANDROID_SDK_ROOT="$HOME/android-sdk"
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          cd "$ANDROID_SDK_ROOT/cmdline-tools"
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
+          unzip -q cmdtools.zip
+          rm cmdtools.zip
+          mv cmdline-tools latest
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "platforms;android-35" "build-tools;35.0.0" > /dev/null 2>&1 || \
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
 
       - name: Install npm dependencies
         run: npm install --legacy-peer-deps
@@ -51,40 +68,41 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
 
       - name: Build Debug APK
-        if: github.event.inputs.build_type == 'debug' || github.event_name == 'push' || github.event_name == 'pull_request'
+        if: github.event.inputs.build_type != 'release'
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon
-          echo "APK_DEBUG_PATH=android/app/build/outputs/apk/debug/app-debug.apk" >> $GITHUB_ENV
+          cp app/build/outputs/apk/debug/app-debug.apk ../goalflow-ai-debug.apk
 
       - name: Build Release APK
-        if: github.event.inputs.build_type == 'release' || github.event_name == 'workflow_dispatch'
+        if: github.event.inputs.build_type == 'release'
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon
-          echo "APK_RELEASE_PATH=android/app/build/outputs/apk/release/app-release-unsigned.apk" >> $GITHUB_ENV
+          cp app/build/outputs/apk/release/app-release-unsigned.apk ../goalflow-ai-release-unsigned.apk
 
       - name: Upload Debug APK
-        if: github.event.inputs.build_type == 'debug' || github.event_name == 'push' || github.event_name == 'pull_request'
+        if: github.event.inputs.build_type != 'release'
         uses: actions/upload-artifact@v4
         with:
           name: goalflow-ai-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: warn
+          path: goalflow-ai-debug.apk
+          if-no-files-found: error
           retention-days: 30
 
       - name: Upload Release APK
-        if: github.event.inputs.build_type == 'release' || github.event_name == 'workflow_dispatch'
+        if: github.event.inputs.build_type == 'release'
         uses: actions/upload-artifact@v4
         with:
           name: goalflow-ai-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: warn
+          path: goalflow-ai-release-unsigned.apk
+          if-no-files-found: error
           retention-days: 30
 
       - name: Create Release with APK
@@ -93,6 +111,6 @@ jobs:
         with:
           tag_name: apk-${{ github.run_number }}
           name: "GoalFlow AI APK v1.0.${{ github.run_number }}"
-          files: android/app/build/outputs/apk/release/*.apk
+          files: goalflow-ai-release-unsigned.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
