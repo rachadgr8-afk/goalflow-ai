@@ -1,0 +1,11 @@
+opencv-contrib-python-headless>=4.8.1.78
+numpy>=1.24.4
+flask>=2.3.3
+onnxruntime>=1.16.0
+ultralytics>=8.1.0
+psutil>=5.9.0
+timm>=0.9.0
+mobile_sam @ git+https://github.com/ChaoningZhang/MobileSAM.git
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision

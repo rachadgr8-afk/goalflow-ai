@@ -1,0 +1,8 @@
+{
+  "name": "GoalFlow AI",
+  "description": "Generate cinematic slow-motion football highlights with background blur directly from your Android device using lightweight AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: goalflow-ai
+    plan: free
+    buildCommand: pip install -r requirements.txt && npm install && npm run build
+    startCommand: node dist/server.js
+    envVars:
+      - key: PYTHON_PATH
+        value: python3

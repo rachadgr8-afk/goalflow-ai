@@ -1,0 +1,9 @@
+node_modules
+dist
+tmp_renders
+*.pyc
+__pycache__
+.env
+mobile_sam.pt
+sam_vit_b_01ec64.pth
+yolov8n.pt
